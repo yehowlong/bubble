@@ -5,6 +5,7 @@ import (
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 	"net/http"
+	"time"
 )
 
 var (
@@ -19,7 +20,7 @@ type Todo struct {
 }
 
 func initMySQL() (err error) {
-	dsn := "root:123456@tcp(127.0.0.1:3306)/test?charset=utf8&parseTime=True&loc=Local"
+	dsn := "root:123456@tcp(127.0.0.1:3306)/bubble?charset=utf8&parseTime=True&loc=Local"
 	DB, err = gorm.Open("mysql", dsn)
 	if err != nil {
 		return nil
@@ -35,6 +36,15 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	// 设置最大连接池数
+	DB.DB().SetMaxOpenConns(100)
+
+	// 设置闲置连接池数
+	DB.DB().SetMaxIdleConns(10)
+
+	// 设置最大闲置时间，超过该时间的连接将会被回收
+	DB.DB().SetConnMaxLifetime(time.Hour)
+
 	defer DB.Close() //程序退出关闭数据库连接
 	//模型绑定
 	DB.AutoMigrate(&Todo{})
@@ -76,7 +86,12 @@ func main() {
 		})
 		//查看所有的待办事项
 		v1Group.GET("/todo", func(c *gin.Context) {
-
+			var todoList []Todo
+			if err = DB.Find(&todoList).Error; err != nil {
+				c.JSON(http.StatusOK, gin.H{"error": err.Error()})
+			} else {
+				c.JSON(http.StatusOK, todoList)
+			}
 		})
 		//查看某一个代办事项
 		v1Group.GET("/todo/:id", func(c *gin.Context) {
@@ -84,11 +99,37 @@ func main() {
 		})
 		//修改
 		v1Group.PUT("/todo/:id", func(c *gin.Context) {
+			id, ok := c.Params.Get("id")
+			if !ok {
+				c.JSON(http.StatusOK, gin.H{"error": "无效的id"})
+				return
+			}
+			var todo Todo
+			if err = DB.Where("id=?", id).First(&todo).Error; err != nil {
+				c.JSON(http.StatusOK, gin.H{"error": err.Error()})
+				return
+			}
+			c.BindJSON(&todo)
+			//DB.Where("id=?",id).Update("status",&todo.Status)
+			if err = DB.Save(&todo).Error; err != nil {
+				c.JSON(http.StatusOK, gin.H{"error": err.Error()})
+			} else {
+				c.JSON(http.StatusOK, todo)
+			}
 
 		})
 		//删除
 		v1Group.DELETE("/todo/:id", func(c *gin.Context) {
-
+			id, ok := c.Params.Get("id")
+			if !ok {
+				c.JSON(http.StatusOK, gin.H{"error": "无效的id"})
+				return
+			}
+			if err = DB.Where("id=?", id).Delete(Todo{}).Error; err != nil {
+				c.JSON(http.StatusOK, gin.H{"error": err.Error()})
+			} else {
+				c.JSON(http.StatusOK, gin.H{id: "deleted"})
+			}
 		})
 	}
 }
