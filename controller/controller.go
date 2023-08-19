@@ -15,7 +15,7 @@ func IndexHandler(c *gin.Context) {
 }
 func CreateATodo(c *gin.Context) {
 	//1.从请求中把数据拿出来
-	var todo Todo
+	var todo models.Todo
 	c.BindJSON(&todo)
 	//2.存入数据库
 	//3.返回响应
@@ -59,7 +59,7 @@ func UpdateATodo(c *gin.Context) {
 	}
 	c.BindJSON(&todo)
 	//DB.Where("id=?",id).Update("status",&todo.Status)
-	if err = DB.Save(&todo).Error; err != nil {
+	if err = models.UpdateATodo(todo); err != nil {
 		c.JSON(http.StatusOK, gin.H{"error": err.Error()})
 	} else {
 		c.JSON(http.StatusOK, todo)
@@ -73,7 +73,7 @@ func DeleteATodo(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"error": "无效的id"})
 		return
 	}
-	if err = DB.Where("id=?", id).Delete(Todo{}).Error; err != nil {
+	if err := models.DeleteATodo(id); err != nil {
 		c.JSON(http.StatusOK, gin.H{"error": err.Error()})
 	} else {
 		c.JSON(http.StatusOK, gin.H{id: "deleted"})
